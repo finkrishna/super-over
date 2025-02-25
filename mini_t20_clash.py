@@ -1,9 +1,11 @@
 import pygame
 import random
 import time
+import os
 
 # Initialize Pygame
 pygame.init()
+print("Pygame initialized")
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Super Over: India vs Australia")
@@ -19,22 +21,29 @@ font = pygame.font.SysFont("Arial", 24)
 score_font = pygame.font.SysFont("Arial", 20)
 ball_font = pygame.font.SysFont("Arial", 18)
 
+# Base directory for relative paths
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Load images
 print("Loading images...")
 try:
-    background = pygame.image.load("/Users/apple/Desktop/dharamshala.png")
+    background = pygame.image.load(os.path.join(BASE_DIR, "dharamshala.png"))
     background = pygame.transform.scale(background, (WIDTH, HEIGHT))
 except:
     background = None
     print("No background, using green.")
 
-# Load sprite sequences
-bowler_frames = [pygame.transform.scale(pygame.image.load(f"/Users/apple/Desktop/bowler{i}.png"), (40, 80)) for i in range(1, 11)]
-batsman_frames = [pygame.transform.scale(pygame.image.load(f"/Users/apple/Desktop/batsman{i}.png"), (40, 80)) for i in range(1, 9)]
-umpire_img = pygame.transform.scale(pygame.image.load("/Users/apple/Desktop/umpire.png"), (40, 80))
+try:
+    bowler_frames = [pygame.transform.scale(pygame.image.load(os.path.join(BASE_DIR, f"bowler{i}.png")), (40, 80)) for i in range(1, 11)]
+    batsman_frames = [pygame.transform.scale(pygame.image.load(os.path.join(BASE_DIR, f"batsman{i}.png")), (40, 80)) for i in range(1, 9)]
+    umpire_img = pygame.transform.scale(pygame.image.load(os.path.join(BASE_DIR, "umpire.png")), (40, 80))
+except Exception as e:
+    print(f"Error loading sprites: {e}")
+    pygame.quit()
+    exit()
 
 # Initial screen
-print("Showing window...")
+print("Showing initial window...")
 screen.fill(FIELD_GREEN if not background else (0, 0, 0))
 if background:
     screen.blit(background, (0, 0))
@@ -55,7 +64,6 @@ current_bowler_idx = 0
 target = 0
 first_innings_balls = []
 second_innings_balls = []
-last_screen = None  # Store final game screen
 
 # Radio button helper
 def draw_radio_buttons(options, selected, x, y, prompt):
@@ -72,6 +80,7 @@ def draw_radio_buttons(options, selected, x, y, prompt):
     return buttons
 
 def get_radio_selection(options, prompt):
+    print(f"Showing selection for: {prompt}")
     selected = 0
     x, y = WIDTH//2 - 200, HEIGHT//2 - len(options) * 20 - 50
     buttons = draw_radio_buttons(options, selected, x, y, prompt)
@@ -88,6 +97,7 @@ def get_radio_selection(options, prompt):
                         selected = i
                         draw_radio_buttons(options, selected, x, y, prompt)
             if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+                print(f"Selected: {options[selected]}")
                 return selected
         clock.tick(60)
 
@@ -106,7 +116,6 @@ def get_outcome(bowler):
 
 # Draw function
 def draw_game(team_batting, batsman, bowler, score, over, ball, result, is_second_innings=False, frame=0):
-    global last_screen
     print(f"Drawing: {bowler} to {batsman} - Frame {frame}")
     if background:
         screen.blit(background, (0, 0))
@@ -172,7 +181,6 @@ def draw_game(team_batting, batsman, bowler, score, over, ball, result, is_secon
     ball_display = ball_font.render(ball_text, True, WHITE)
     screen.blit(ball_display, (WIDTH - ball_display.get_width() - 10, 40))
 
-    last_screen = screen.copy()  # Store the final frame
     pygame.display.flip()
 
 # Play innings
@@ -207,6 +215,10 @@ def play_innings(team_batting, batsmen, opponent_bowlers, ball_list):
             print(f"{team_batting} - {bowler} to {batsman}: {result}")
             pygame.event.pump()
             time.sleep(0.5)
+            # Check if second team has won
+            if is_second_innings and runs >= target:
+                print(f"{team_batting} wins after {over}.{ball + 1} balls!")
+                return runs, wickets  # Exit early if target is overhauled
         overs += 1
     return runs, wickets
 
@@ -239,7 +251,7 @@ def get_bowler(user_team_bowlers):
 
 # Main game loop
 def play_game():
-    global target, first_innings_balls, second_innings_balls, last_screen
+    global target, first_innings_balls, second_innings_balls
     running = True
     first_innings_balls = []
     second_innings_balls = []
@@ -292,9 +304,7 @@ def play_game():
     result_text = f"{first_team}: {first_score}/{first_wickets}\n{second_team}: {second_score}/{second_wickets}\nResult: {first_team if first_score > second_score else second_team} wins by {abs(first_score - second_score)} runs!"
     print(result_text)
     
-    # Use last screen and overlay results
-    if last_screen:
-        screen.blit(last_screen, (0, 0))
+    # Draw only the top-left results over the last frame
     pygame.draw.rect(screen, BLACK, (0, 0, 200, 100))  # Small black box for results
     lines = result_text.split('\n')
     for i, line in enumerate(lines):
